@@ -6,8 +6,11 @@ const path = require('path');
 const crypto = require('crypto');
 const store = require('./store');
 const fixedLinks = require('./links');
+const templates = require('./templates');
 
 const TIMER_SECONDS = 5;
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const STATIC_TYPES = { '.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const NO_STORE_MSG =
   'Armazenamento não configurado. Na Vercel, conecte um banco Upstash Redis ao projeto (aba Storage) e faça um novo deploy.';
@@ -133,7 +136,15 @@ async function handler(req, res) {
 
   try {
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
-      return sendHtml(res, 200, fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8'));
+      return sendHtml(res, 200, fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8'));
+    }
+
+    if (req.method === 'GET' && STATIC_TYPES[path.extname(pathname)]) {
+      const file = path.join(PUBLIC_DIR, path.normalize(pathname));
+      if (file.startsWith(PUBLIC_DIR + path.sep) && fs.existsSync(file)) {
+        res.writeHead(200, { 'Content-Type': STATIC_TYPES[path.extname(pathname)], 'Cache-Control': 'public, max-age=86400' });
+        return res.end(fs.readFileSync(file));
+      }
     }
 
     if (req.method === 'POST' && pathname === '/api/shorten') {
@@ -164,7 +175,10 @@ async function handler(req, res) {
       if (!link) return sendHtml(res, 404, messagePage('Link não encontrado', 'Esse link curto não existe ou foi removido.'));
 
       if (req.method === 'GET' && store) await store.hit(code).catch((err) => console.error(err));
-      if (link.timer) return sendHtml(res, 200, timerPage(link.url));
+      if (link.timer) {
+        const custom = link.template && Object.hasOwn(templates, link.template) ? templates[link.template] : null;
+        return sendHtml(res, 200, custom ? custom(link.url, TIMER_SECONDS) : timerPage(link.url));
+      }
       res.writeHead(302, { Location: link.url, 'Cache-Control': 'no-store' });
       return res.end();
     }
