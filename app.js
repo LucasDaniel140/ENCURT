@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const store = require('./store');
+const fixedLinks = require('./links');
 
 const TIMER_SECONDS = 5;
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -150,17 +151,19 @@ async function handler(req, res) {
       let code;
       do {
         code = newCode();
-      } while (!(await store.create(code, link)));
+      } while (Object.hasOwn(fixedLinks, code) || !(await store.create(code, link)));
       return sendJson(res, 201, { code, shortUrl: `${baseUrl(req)}/${code}`, url, timer: link.timer });
     }
 
     if (req.method === 'GET' || req.method === 'HEAD') {
-      if (!store) return sendHtml(res, 503, messagePage('Serviço não configurado', NO_STORE_MSG));
-      const code = pathname.slice(1);
-      const link = /^[a-zA-Z0-9]{1,32}$/.test(code) ? await store.get(code) : null;
+      const code = pathname.slice(1).replace(/\/+$/, '');
+      const valid = /^[a-zA-Z0-9_-]{1,32}$/.test(code);
+      // Links fixos (links.js) têm prioridade e não dependem de banco.
+      let link = valid && Object.hasOwn(fixedLinks, code) ? fixedLinks[code] : null;
+      if (!link && valid && store) link = await store.get(code);
       if (!link) return sendHtml(res, 404, messagePage('Link não encontrado', 'Esse link curto não existe ou foi removido.'));
 
-      if (req.method === 'GET') await store.hit(code).catch((err) => console.error(err));
+      if (req.method === 'GET' && store) await store.hit(code).catch((err) => console.error(err));
       if (link.timer) return sendHtml(res, 200, timerPage(link.url));
       res.writeHead(302, { Location: link.url, 'Cache-Control': 'no-store' });
       return res.end();

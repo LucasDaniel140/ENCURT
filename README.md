@@ -7,7 +7,19 @@ Ao criar o link, você escolhe se o visitante:
 - é redirecionado **direto** para o destino, ou
 - vê uma tela com **timer de 5 segundos** antes de ser enviado.
 
-## Deploy na Vercel
+## Links fixos (sem banco de dados)
+
+Os links definidos em `links.js` funcionam sem nenhum banco. Exemplo já configurado:
+
+- `/grupo` leva ao grupo do WhatsApp, com timer de 5 segundos.
+
+Para criar outro, adicione uma linha em `links.js` e faça o deploy:
+
+```js
+promo: { url: 'https://exemplo.com/oferta', timer: false },
+```
+
+## Deploy na Vercel (para criar links pelo formulário)
 
 A Vercel não tem disco persistente, então os links ficam em um banco Redis (Upstash, plano gratuito).
 
