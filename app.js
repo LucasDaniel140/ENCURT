@@ -6,7 +6,6 @@ const path = require('path');
 const crypto = require('crypto');
 const store = require('./store');
 const fixedLinks = require('./links');
-const templates = require('./templates');
 
 const TIMER_SECONDS = 5;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -121,6 +120,25 @@ function timerPage(url) {
   </script>`);
 }
 
+// Tela de contagem só com uma frase (campo text em links.js).
+function textTimerPage(url, text) {
+  const safe = escapeHtml(url);
+  const [before, after = ''] = text.split('{s}').map(escapeHtml);
+  return page('Redirecionando...', `
+  <h1>${before}<span id="count">${TIMER_SECONDS}</span>${after}</h1>
+  <noscript><meta http-equiv="refresh" content="${TIMER_SECONDS};url=${safe}"></noscript>
+  <script>
+    var left = ${TIMER_SECONDS};
+    var dest = ${JSON.stringify(url).replace(/</g, '\\u003c')};
+    var el = document.getElementById('count');
+    var t = setInterval(function () {
+      left--;
+      el.textContent = Math.max(left, 0);
+      if (left <= 0) { clearInterval(t); location.replace(dest); }
+    }, 1000);
+  </script>`);
+}
+
 function messagePage(title, text) {
   return page(title, `
   <h1>${title}</h1>
@@ -175,10 +193,7 @@ async function handler(req, res) {
       if (!link) return sendHtml(res, 404, messagePage('Link não encontrado', 'Esse link curto não existe ou foi removido.'));
 
       if (req.method === 'GET' && store) await store.hit(code).catch((err) => console.error(err));
-      if (link.timer) {
-        const custom = link.template && Object.hasOwn(templates, link.template) ? templates[link.template] : null;
-        return sendHtml(res, 200, custom ? custom(link.url, TIMER_SECONDS) : timerPage(link.url));
-      }
+      if (link.timer) return sendHtml(res, 200, link.text ? textTimerPage(link.url, link.text) : timerPage(link.url));
       res.writeHead(302, { Location: link.url, 'Cache-Control': 'no-store' });
       return res.end();
     }
