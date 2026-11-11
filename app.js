@@ -126,7 +126,9 @@ function messagePage(title, text) {
 
 // ---------- Rotas ----------
 async function handler(req, res) {
-  const { pathname } = new URL(req.url, 'http://localhost');
+  // Na Vercel, o rewrite troca req.url por /api/index; o caminho original vem em ?__path= (ver vercel.json).
+  const parsed = new URL(req.url, 'http://localhost');
+  const pathname = parsed.searchParams.get('__path') || parsed.pathname;
 
   try {
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
